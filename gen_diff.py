@@ -9,7 +9,7 @@ import argparse
 from scipy.misc import imsave
 
 from driving_models import *
-from utils import *
+from utils_v2 import *
 
 from keras_preprocessing.image import list_pictures
 
@@ -61,6 +61,7 @@ for _ in range(args.seeds):
     Copy = np.zeros(my_image.shape, np.uint8)
     Copy = my_image.copy()
     imsave('./generated_inputs/' + 'Copy' + '.jpg', Copy)
+    Copy = cv2.cvtColor(Copy, cv2.COLOR_BGR2RGB)
     y = my_image.shape[0]
     x = my_image.shape[1]
     z = my_image.shape[2]
@@ -201,9 +202,8 @@ for _ in range(args.seeds):
             print (np.mean(grads_value))
 
         elif args.transformation == 'Blur':
-            os.system("cmake CMakeLists.txt blur.cpp")
-            os.system("make")
-            os.system("./Driving")
+            Copy = constraint_myBlur(Copy, 2)
+            imsave('./generated_inputs/' + 'Copy' + '.jpg', Copy)
             gen_img = preprocess_image('generated_inputs/Copy.jpg')
             loss_value1, loss_value2, loss_value3, loss_neuron1, loss_neuron2, loss_neuron3, grads_value = iterate(
                 [gen_img])
