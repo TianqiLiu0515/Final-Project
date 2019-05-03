@@ -14,12 +14,14 @@ from utils_v2 import *
 from keras_preprocessing.image import list_pictures
 
 import os
+import sys
+import datetime
 
 # read the parameter
 # argument parsing
 parser = argparse.ArgumentParser(
     description='Main function for difference-inducing input generation in Driving dataset')
-parser.add_argument('transformation', help="realistic transformation type", choices=['light', 'occl', 'blackout', 'circle', 'color', 'Blur', 'Fisheye'])
+parser.add_argument('transformation', help="realistic transformation type", choices=['light', 'occl', 'blackout', 'circle', 'color', 'blur', 'fisheye'])
 parser.add_argument('weight_diff', help="weight hyperparm to control differential behavior", type=float)
 parser.add_argument('weight_nc', help="weight hyperparm to control neuron coverage", type=float)
 parser.add_argument('step', help="step size of gradient descent", type=float)
@@ -53,7 +55,16 @@ model_layer_dict1, model_layer_dict2, model_layer_dict3 = init_coverage_tables(m
 # ==============================================================================================
 # start gen inputs
 img_paths = list_pictures('testing/center', ext='jpg')
-fhand = open("neuron_coverage.txt", 'w')
+time_stamp = datetime.datetime.now()
+filename = time_stamp.strftime('%Y.%m.%d-%H:%M:%S') + '_' + sys.argv[1] + '.txt'
+fhand = open(filename, 'w')
+fhand.write("Transformation: " + sys.argv[1] + '\n')
+fhand.write('weight_diff: ' + sys.argv[2] + '\n')
+fhand.write('weight_nc: ' + sys.argv[3] + '\n')
+fhand.write('step: ' + sys.argv[4] + '\n')
+fhand.write('seeds: ' + sys.argv[5] + '\n')
+fhand.write('grad_iterations: ' + sys.argv[6] + '\n')
+fhand.write('threshold: ' + sys.argv[7] + '\n')
 for _ in range(args.seeds):
     img_path = random.choice(img_paths)
     gen_img = preprocess_image(img_path)
@@ -141,9 +152,9 @@ for _ in range(args.seeds):
     # we run gradient ascent for 20 steps
     loss_value1, loss_value2, loss_value3, loss_neuron1, loss_neuron2, loss_neuron3, grads_value = iterate(
         [gen_img])
-    print("Origin_grad: "),
+    print("Original_grad: "),
     print(np.mean(grads_value))
-    fhand.write("Origin_grad: ")
+    fhand.write("Original_grad: ")
     fhand.write(str(np.mean(grads_value)))
     fhand.write('\n')
     for iters in range(args.grad_iterations):
@@ -165,23 +176,12 @@ for _ in range(args.seeds):
             gen_img += grads_value * args.step
             # gen_img = grads_value * args.step * 50  # show the gradient
 
+
+
+
         elif args.transformation == 'circle':
             Copy = constraint_circle(Copy, iters + 1, x, dis, newgrad)
             imsave('./generated_inputs/' + 'Copy' + '.jpg', Copy)
-            gen_img = preprocess_image('generated_inputs/Copy.jpg')
-            loss_value1, loss_value2, loss_value3, loss_neuron1, loss_neuron2, loss_neuron3, grads_value = iterate(
-                [gen_img])
-            print("Changed_grad: "),
-            print (np.mean(grads_value))
-
-
-
-        elif args.transformation == 'color':
-            # Copy = constraint_colorChange(Copy)
-            # run color.cpp
-            os.system("cmake CMakeLists.txt color.cpp")
-            os.system("make")
-            os.system("./Driving")
             gen_img = preprocess_image('generated_inputs/Copy.jpg')
             loss_value1, loss_value2, loss_value3, loss_neuron1, loss_neuron2, loss_neuron3, grads_value = iterate(
                 [gen_img])
@@ -191,17 +191,37 @@ for _ in range(args.seeds):
             fhand.write(str(np.mean(grads_value)))
             fhand.write('\n')
 
-        elif args.transformation == 'Fisheye':
-            os.system("cmake CMakeLists.txt fish_eye.cpp")
+        elif args.transformation == 'color':
+            # Copy = constraint_colorChange(Copy)
+            # run color.cpp
+            # os.system("cmake CMakeLists.txt color.cpp")
+            os.system("cmake CMakeLists.txt 599ImgProcessing.cpp")
             os.system("make")
-            os.system("./Driving")
+            os.system("./Driving color")
             gen_img = preprocess_image('generated_inputs/Copy.jpg')
             loss_value1, loss_value2, loss_value3, loss_neuron1, loss_neuron2, loss_neuron3, grads_value = iterate(
                 [gen_img])
             print("Changed_grad: "),
             print (np.mean(grads_value))
+            fhand.write("Changed_grad: ")
+            fhand.write(str(np.mean(grads_value)))
+            fhand.write('\n')
 
-        elif args.transformation == 'Blur':
+        elif args.transformation == 'fisheye':
+            # os.system("cmake CMakeLists.txt fish_eye.cpp")
+            os.system("cmake CMakeLists.txt 599ImgProcessing.cpp")
+            os.system("make")
+            os.system("./Driving fisheye")
+            gen_img = preprocess_image('generated_inputs/Copy.jpg')
+            loss_value1, loss_value2, loss_value3, loss_neuron1, loss_neuron2, loss_neuron3, grads_value = iterate(
+                [gen_img])
+            print("Changed_grad: "),
+            print (np.mean(grads_value))
+            fhand.write("Changed_grad: ")
+            fhand.write(str(np.mean(grads_value)))
+            fhand.write('\n')
+
+        elif args.transformation == 'blur':
             Copy = constraint_myBlur(Copy, 2)
             imsave('./generated_inputs/' + 'Copy' + '.jpg', Copy)
             gen_img = preprocess_image('generated_inputs/Copy.jpg')
@@ -209,6 +229,9 @@ for _ in range(args.seeds):
                 [gen_img])
             print("Changed_grad: "),
             print (np.mean(grads_value))
+            fhand.write("Changed_grad: ")
+            fhand.write(str(np.mean(grads_value)))
+            fhand.write('\n')
 
 
         angle1, angle2, angle3 = model1.predict(gen_img)[0], model2.predict(gen_img)[0], model3.predict(gen_img)[0]
@@ -222,6 +245,11 @@ for _ in range(args.seeds):
                   % (len(model_layer_dict1), neuron_covered(model_layer_dict1)[2], len(model_layer_dict2),
                      neuron_covered(model_layer_dict2)[2], len(model_layer_dict3),
                      neuron_covered(model_layer_dict3)[2]) + bcolors.ENDC)
+
+            fhand.write('covered neurons percentage %d neurons %.3f, %d neurons %.3f, %d neurons %.3f'
+                  % (len(model_layer_dict1), neuron_covered(model_layer_dict1)[2], len(model_layer_dict2),
+                     neuron_covered(model_layer_dict2)[2], len(model_layer_dict3),
+                     neuron_covered(model_layer_dict3)[2]) + bcolors.ENDC)
             averaged_nc = (neuron_covered(model_layer_dict1)[0] + neuron_covered(model_layer_dict2)[0] +
                            neuron_covered(model_layer_dict3)[0]) / float(
                 neuron_covered(model_layer_dict1)[1] + neuron_covered(model_layer_dict2)[1] +
@@ -229,6 +257,9 @@ for _ in range(args.seeds):
                     1])
             print(bcolors.OKGREEN + 'averaged covered neurons %.3f' % averaged_nc + bcolors.ENDC)
 
+            fhand.write('averaged covered neurons %.3f' % averaged_nc + bcolors.ENDC)
+            fhand.write('\n')
+            
             gen_img_deprocessed = draw_arrow(deprocess_image(gen_img), angle1, angle2, angle3)
             orig_img_deprocessed = draw_arrow(deprocess_image(orig_img), orig_angle1, orig_angle2, orig_angle3)
 
